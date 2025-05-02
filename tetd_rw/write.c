@@ -52,7 +52,7 @@ static unsigned long aes_encrypt(const unsigned char *input, unsigned char *outp
     return 0;
 }
 unsigned long work_encrypt(const unsigned char *input, unsigned char *output){
-    for(int i = 0; i < DUMP_SIZE / AES_BLOCK_SIZE; i++){
+    for(int i = 0; i < PAGE_SIZE / AES_BLOCK_SIZE; i++){
         aes_encrypt(input + i * AES_BLOCK_SIZE, output + i * AES_BLOCK_SIZE);
     }
     return 0;
