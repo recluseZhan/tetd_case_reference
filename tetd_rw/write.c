@@ -1,12 +1,22 @@
 #include <linux/module.h>
 #include <linux/scatterlist.h>
 #include <crypto/skcipher.h>
+#include "aesni_encrypt.h"
 
 #define AES_KEY_SIZE 16
 #define AES_BLOCK_SIZE 16
-static const unsigned char aes_key[AES_KEY_SIZE] = "0123456789abcdef";
+//static const unsigned char aes_key[AES_KEY_SIZE] = "0123456789abcdef";
 #define DUMP_SIZE 4096
 
+extern int aes_encrypt_128(const u8 *input, u8 *output, const u8 *key);
+
+static const u8 aes_key[AES_KEY_SIZE] = {
+    0x2b, 0x7e, 0x15, 0x16,
+    0x28, 0xae, 0xd2, 0xa6,
+    0xab, 0xf7, 0x32, 0x29,
+    0x1a, 0xc1, 0x30, 0x08
+};
+/*
 static unsigned long aes_encrypt(const unsigned char *input, unsigned char *output){
     struct crypto_skcipher *tfm;
     struct skcipher_request *req;
@@ -51,9 +61,18 @@ static unsigned long aes_encrypt(const unsigned char *input, unsigned char *outp
     crypto_free_skcipher(tfm);
     return 0;
 }
+
 unsigned long work_encrypt(const unsigned char *input, unsigned char *output){
     for(int i = 0; i < PAGE_SIZE / AES_BLOCK_SIZE; i++){
         aes_encrypt(input + i * AES_BLOCK_SIZE, output + i * AES_BLOCK_SIZE);
+    }
+    return 0;
+}*/
+
+
+unsigned long work_encrypt(const u8 *input, u8 *output){
+    for (int i = 0; i < PAGE_SIZE / AES_BLOCK_SIZE; i++) {
+        aes_encrypt_128(input + i * AES_BLOCK_SIZE, output + i * AES_BLOCK_SIZE, aes_key);
     }
     return 0;
 }
@@ -80,8 +99,8 @@ void write_to_buffer(unsigned long len) {
             cpu_relax();  
         }	
 	//memset(ivshmem_base,1,RING_BUFFER_SIZE);
-	//work_encrypt(data+bytes_written,ivshmem_base+head);
-        memcpy(ivshmem_base+head,data+bytes_written,PAGE_SIZE);
+	work_encrypt(data+bytes_written,ivshmem_base+head);
+        //memcpy(ivshmem_base+head,data+bytes_written,PAGE_SIZE);
 	head = (head+PAGE_SIZE) % RING_BUFFER_SIZE;
 	bytes_written += PAGE_SIZE;
     }

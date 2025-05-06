@@ -1,5 +1,5 @@
 obj-m += write1.o
-write1-objs := write.o
+write1-objs := aesni_encrypt.o write.o
 
 obj-m += read1.o
 read1-objs := read.o
