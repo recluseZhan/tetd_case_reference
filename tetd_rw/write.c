@@ -74,6 +74,7 @@ void write_to_buffer(unsigned long len) {
     unsigned long bytes_written = 0;
     unsigned long phys_addr = 0x00900000;
     void *data = phys_to_virt(phys_addr);
+    //data = memremap(phys_addr, PAGE_SIZE, MEMREMAP_WB);
     while (bytes_written < len) {
         while (((head + 1) % RING_BUFFER_SIZE) == tail) {
             cpu_relax();  
