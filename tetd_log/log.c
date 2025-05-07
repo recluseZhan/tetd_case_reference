@@ -1,15 +1,6 @@
 #include <linux/module.h>
-#include <linux/kernel.h>
-#include <linux/init.h>
-#include <linux/sched.h>
 #include <linux/tty.h>
-#include <linux/time.h>
-#include <linux/ktime.h>
-#include <linux/slab.h>
-#include <linux/mm.h>
-#include <linux/fs.h>
-#include <linux/uaccess.h>
-#include <asm/io.h>
+//#include <linux/io.h>
 MODULE_LICENSE("GPL");
 
 #define PAGE_SIZE 4096
@@ -18,6 +9,7 @@ MODULE_LICENSE("GPL");
 #define SIZE 128
 static char* page_memory = NULL;
 //static char __iomem *vaddr;
+
 int log_copy(void){
     if(page_memory == NULL){
         page_memory = (char *)__get_free_pages(GFP_KERNEL, 0);

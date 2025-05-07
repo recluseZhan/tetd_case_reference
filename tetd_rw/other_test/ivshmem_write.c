@@ -140,6 +140,5 @@ module_init(ivshmem_init);
 module_exit(ivshmem_exit);
 
 MODULE_LICENSE("GPL");
-MODULE_AUTHOR("Your Name");
 MODULE_DESCRIPTION("IVSHMEM Kernel Module for Reading and Writing to Shared Memory");
 
