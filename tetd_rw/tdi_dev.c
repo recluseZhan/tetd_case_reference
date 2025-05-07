@@ -4,8 +4,8 @@ MODULE_LICENSE("GPL");
 #define DEV_ID 233
 #define DEVNAME "tdi_dev"
 
-extern void write_kernel_to_buffer(void);
-extern int read_from_buffer(void);
+extern void write_kernel_to_buffer(unsigned long phys_addr, unsigned long len);
+extern int read_from_buffer(unsigned long len);
 
 // open dev
 static int tdi_dev_open(struct inode *inode, struct file *filp) 
@@ -20,14 +20,17 @@ static int tdi_dev_release(struct inode *inode, struct file *filp)
 // read dev
 static ssize_t tdi_dev_read(struct file *filp, char __user *buf, size_t size, loff_t *offset) 
 {    
-    read_from_buffer();
+    unsigned long len = 4096;
+    read_from_buffer(len);
     return 0;
 } 
 
 // write dev
 static ssize_t tdi_dev_write(struct file *filp, const char __user *buf, size_t size, loff_t *offset) 
 {  
-    write_kernel_to_buffer();
+    unsigned long phys_addr = 0x00900000;
+    unsigned long len = 4096;
+    write_kernel_to_buffer(phys_addr, len);
     return 0; 
 } 
 

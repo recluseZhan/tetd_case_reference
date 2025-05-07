@@ -6,7 +6,7 @@
 #define AES_KEY_SIZE 16
 #define AES_BLOCK_SIZE 16
 //static const unsigned char aes_key[AES_KEY_SIZE] = "0123456789abcdef";
-#define DUMP_SIZE 4096
+//#define DUMP_SIZE 4096
 
 extern int aes_encrypt_128(const u8 *input, u8 *output, const u8 *key);
 
@@ -89,9 +89,9 @@ char* shared_mem;
 unsigned long head = 0;
 unsigned long tail = 0;
 
-void write_to_buffer(unsigned long len) {
+void write_to_buffer(unsigned long phys_addr, unsigned long len) {
     unsigned long bytes_written = 0;
-    unsigned long phys_addr = 0x00900000;
+    //unsigned long phys_addr = 0x00900000;
     void *data = phys_to_virt(phys_addr);
     //data = memremap(phys_addr, PAGE_SIZE, MEMREMAP_WB);
     while (bytes_written < len) {
@@ -106,9 +106,9 @@ void write_to_buffer(unsigned long len) {
     }
 }
 
-#define DATA_SIZE (4096*3)
-void write_kernel_to_buffer(void){
-    write_to_buffer(DATA_SIZE);
+//#define DATA_SIZE (4096*3)
+void write_kernel_to_buffer(unsigned long phys_addr, unsigned long len){
+    write_to_buffer(phys_addr, len);
 }
 static int __init write_module_init(void)
 {

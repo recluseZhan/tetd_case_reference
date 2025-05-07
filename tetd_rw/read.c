@@ -6,17 +6,17 @@
 void __iomem *ivshmem_base;
 
 #define RING_BUFFER_SIZE (256 * 1024)  // 256KB
-#define DATA_SIZE (4096*3)
+//#define DATA_SIZE (4096*3)
 #define PAGE_SIZE 4096
 extern char *shared_mem;
 extern unsigned long head;
 extern unsigned long tail;
 
-int read_from_buffer(void)
+int read_from_buffer(unsigned long len)
 {
     char print_buffer[PAGE_SIZE];
     unsigned long bytes_readed  = 0;
-    while (bytes_readed < DATA_SIZE) {
+    while (bytes_readed < len) {
         while (tail == head) {
             cpu_relax(); 
         }
