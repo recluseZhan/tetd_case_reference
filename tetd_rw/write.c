@@ -135,7 +135,7 @@ unsigned long work_encrypt(const u8 *input, u8 *output, size_t len){
     //printk("tag=%*phN\n", 16, tag); 
     for (int i = 0; i < PAGE_SIZE / AES_BLOCK_SIZE; i++) {
         aes_gcm_encrypt(output + i * AES_BLOCK_SIZE, input + i * AES_BLOCK_SIZE);
-    //    aes_encrypt_128(input + i * AES_BLOCK_SIZE, output + i * AES_BLOCK_SIZE, aes_key);
+    //    aes_encrypt_128(input + i * AES_BLOCK_SIZE, output + i * AES_BLOCK_SIZE, test_key);
     }
     return 0;
 }
