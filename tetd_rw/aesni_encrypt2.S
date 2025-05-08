@@ -2,7 +2,7 @@
 #include <asm/ibt.h>
     .text
     .align 16
-SYM_FUNC_START(aes_encrypt_128)
+SYM_FUNC_START(aes_gcm_encrypt)
     movdqu  j1(%rip), %xmm0        
     pxor    key0(%rip), %xmm0      
     aesenc  key1(%rip), %xmm0      
@@ -165,7 +165,7 @@ SYM_FUNC_START(aes_encrypt_128)
     movdqu  %xmm10, (%rdi)       
     movdqu  %xmm3, 16(%rdi)     
     RET
-SYM_FUNC_END(aes_encrypt_128)
+SYM_FUNC_END(aes_gcm_encrypt)
 
 .section .rodata
     .align 16

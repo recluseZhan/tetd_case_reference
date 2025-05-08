@@ -7,7 +7,7 @@
 #define GHASH_POLY 0xe1u
 
 extern int aes_encrypt_128(const u8 *input, u8 *output, const u8 *key);
-
+extern void aes_gcm_encrypt(u8 *dst, const u8 *src);
 // NIST standard "carry-less multiplication + reduction" on GF(2^128).
 // Xi[16], H[16] -> Z[16]
 static void ghash_mul_block(const u8 Xi[16], const u8 H[16], u8 Z[16])
@@ -131,11 +131,12 @@ static const u8 test_iv[12] = {
 u8 tag[16];
 
 unsigned long work_encrypt(const u8 *input, u8 *output, size_t len){
-    gcm_encrypt(test_key, test_iv, input, len, output, tag);
-    printk("tag=%*phN\n", 16, tag); 
-    //for (int i = 0; i < PAGE_SIZE / AES_BLOCK_SIZE; i++) {
+    //gcm_encrypt(test_key, test_iv, input, len, output, tag);
+    //printk("tag=%*phN\n", 16, tag); 
+    for (int i = 0; i < PAGE_SIZE / AES_BLOCK_SIZE; i++) {
+        aes_gcm_encrypt(output + i * AES_BLOCK_SIZE, input + i * AES_BLOCK_SIZE);
     //    aes_encrypt_128(input + i * AES_BLOCK_SIZE, output + i * AES_BLOCK_SIZE, aes_key);
-    //}
+    }
     return 0;
 }
 
