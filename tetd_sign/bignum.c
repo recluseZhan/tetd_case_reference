@@ -3,10 +3,6 @@
 
 /*
  * This method converts a string bignum to the bignum variable.
- * Example usage str2bignum("12345678901234")
- * If the base B is 16 then the above number corresponds to the hex
- * value of 0xb3a73ce2ff2
- *
  * */
 bignum str2bignum(char * str){
     int i, j;
@@ -22,8 +18,6 @@ bignum str2bignum(char * str){
     bignum_primitives[10].sign = 1;
 
     if (B < 10) {
-    	// We initialise the primitive bignum only when the base is less than 10, else the base
-    	// primitive number array size would be very large, thus decreasing the code performance.
     	i = 0;
     	        int int_ten = 10;
     	        bignum_primitives[10].size = 1;
@@ -97,9 +91,8 @@ bignum add(bignum a, bignum b){
     sum.size = a.size;
     sum.tab = (integer *)malloc((a.size + 1) * sizeof(integer));
 
-    //
     int i;
-    integer  tmp;
+    integer tmp;
     integer carry = 0;
     for (i  = 0; i < b.size; i++) {
         tmp = a.tab[i] + b.tab[i] + carry;
@@ -236,8 +229,6 @@ bignum mult(bignum a, bignum b){
 
 /*
  *  This method divides a by n and returns the remainder.
- *	We have not implemented the algorithm given in slide, rather we followed the algorithm given in reference.(With an exponent)
- *	We have implemented so because, it computes remainder in linear time scale.
  * */
 bignum reminder(bignum a, bignum n){
     int isEqual;
@@ -804,170 +795,4 @@ bignum * normalized_divi(bignum a, bignum b){
     output[0] = quotient;
     output[1] = remainder;
     return output;
-}
-
-void testStr2bignum(){
-    printf("\n*************************** Test string to bignum and print bignum - Start ***************************");
-    char strNum[]="12345678901234";
-    bignum a= str2bignum(strNum);
-    printf("\nstring a :\n %s", strNum);
-    printf("\nbignum a :\n");
-    printbignum(a);
-    printf("*************************** Test string to bignum and print bignum  -  End  ***************************\n");
-}
-
-void testAddition(){
-    printf("\n*************************** Test Addition - Start ***************************\n");
-    bignum a= str2bignum("12345678901234");
-    bignum b= str2bignum("1");
-    bignum output= add(a,b);
-    printf("a :\n");
-    printbignum(a);
-    printf("\nb :\n");
-    printbignum(b);
-    printf("\n(a+b) :\n");
-    printbignum(output);
-    printf("*************************** Test Addition -  End  ***************************\n");
-}
-
-void testSubtraction(){
-    printf("\n*************************** Test Subtraction - Start ***************************\n");
-    bignum a= str2bignum("12345678901234");
-    bignum b= str2bignum("1");
-    bignum output= sub(a,b);
-    printf("a :\n");
-    printbignum(a);
-    printf("\nb :\n");
-    printbignum(b);
-    printf("\n(a-b) :\n");
-    printbignum(output);
-    printf("*************************** Test Subtraction -  End  ***************************\n");
-}
-
-void testMultiplication(){
-    printf("\n*************************** Test Multiplication - Start ***************************\n");
-    bignum a= str2bignum("12345678901234");
-    bignum b= str2bignum("16");
-    bignum output= mult(a,b);
-    printf("a :\n");
-    printbignum(a);
-    printf("\nb :\n");
-    printbignum(b);
-    printf("\n(a*b) :\n");
-    printbignum(output);
-    printf("*************************** Test Multiplication -  End  ***************************\n");
-}
-
-void testRemainder(){
-    printf("\n*************************** Test Remainder - Start ***************************\n");
-    bignum a= str2bignum("12345678901234");
-    bignum n= str2bignum("16");
-    bignum output= reminder(a,n);
-    printf("a :\n");
-    printbignum(a);
-    printf("\nn :\n");
-    printbignum(n);
-    printf("\nremainder(a,n) :\n");
-    printbignum(output);
-    printf("*************************** Test Remainder -  End  ***************************\n");
-}
-
-void testAdditionModulus(){
-    printf("\n*************************** Test Addition Modulus - Start ***************************\n");
-    bignum a= str2bignum("12345678901234");
-    bignum b= str2bignum("1");
-    bignum n= str2bignum("16");
-
-    bignum output= addmod(a, b, n);
-    printf("a :\n");
-    printbignum(a);
-    printf("\nb :\n");
-    printbignum(b);
-    printf("\nn :\n");
-    printbignum(n);
-    printf("\n(a+b) mod n :\n");
-    printbignum(output);
-    printf("*************************** Test Addition Modulus -  End  ***************************\n");
-}
-
-void testMultiplicationModulus(){
-    printf("\n*************************** Test Multiplication Modulus - Start ***************************\n");
-    bignum a= str2bignum("12345678901234");
-    bignum b= str2bignum("16");
-    bignum n= str2bignum("16");
-
-    bignum output= multmod(a, b, n);
-    printf("a :\n");
-    printbignum(a);
-    printf("\nb :\n");
-    printbignum(b);
-    printf("\nn :\n");
-    printbignum(n);
-    printf("\n(a*b) mod n :\n");
-    printbignum(output);
-    printf("*************************** Test Addition Modulus -  End  ***************************\n");
-}
-void testExponentialModulus(){
-    printf("\n*************************** Test Exponential Modulus - Start ***************************\n");
-    bignum a= str2bignum("12345678901234");
-    bignum b= str2bignum("16");
-    bignum n= str2bignum("16");
-
-    bignum output= expmod(a, b, n);
-    printf("a :\n");
-    printbignum(a);
-    printf("\nb :\n");
-    printbignum(b);
-    printf("\nn :\n");
-    printbignum(n);
-    printf("\n(a^b) mod n :\n");
-    printbignum(output);
-    printf("*************************** Test Exponential Modulus -  End  ***************************\n");
-}
-
-void testFermat(){
-    printf("\n*************************** Test Fermat - Start ***************************\n");
-    bignum a= genrandomprime(100);
-    printf("a :\n");
-    printbignum(a);
-    int t=10;
-    printf("t : %d\n", t);
-    int res= fermat( a ,t);
-    if(res==0){
-    	printf("%d is composite \n", a);
-    }else{
-    	printf("%d is prime \n", a);
-    }
-    printf("\n");
-    a= str2bignum("100");
-    printf("a :\n");
-    printbignum(a);
-    printf("t : %d\n", t);
-    res= fermat( a ,t);
-    if(res==0){
-    	printf("%d is composite \n", a);
-    }else{
-    	printf("%d is prime \n", a);
-    }
-	printf("\n*************************** Test Fermat - End ***************************\n");
-}
-
-void testGenerateRandom(){
-    printf("\n*************************** Test GenerateRandom - Start ***************************\n");
-    int length= 10;
-    printf("length is: %d", length);
-    bignum a= genrandom(length);
-    printf("\nrandom number of length %d :\n", length);
-    printbignum(a);
-    printf("\n*************************** Test GenerateRandom - End ***************************\n");
-}
-
-void testGenerateRandomPrime(){
-    printf("\n*************************** Test Generate Random Prime- Start ***************************\n");
-    int length= 10;
-    printf("length is: %d", length);
-    bignum a= genrandomprime(length);
-    printf("\nrandom prime number of length %d :\n", length);
-    printbignum(a);
-    printf("\n*************************** Test GenerateRandom - End ***************************\n");
 }

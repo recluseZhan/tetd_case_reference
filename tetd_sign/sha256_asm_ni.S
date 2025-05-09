@@ -258,3 +258,5 @@ movdqu		%xmm2, 1*16(%rdi)
 .Ldone_hash:
 
 RET
+
+.section .note.GNU-stack,"",@progbits

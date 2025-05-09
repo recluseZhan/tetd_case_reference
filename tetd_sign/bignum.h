@@ -62,18 +62,4 @@ bignum gcd(bignum a, bignum b);
 bignum divi(bignum a, bignum n);
 bignum * normalized_divi(bignum a, bignum b);
 
-
-// Test methods
-void testStr2bignum();
-void testAddition();
-void testSubtraction();
-void testMultiplication();
-void testRemainder();
-void testAdditionModulus();
-void testMultiplicationModulus();
-void testExponentialModulus();
-void testFermat();
-void testGenerateRandom();
-void testGenerateRandomPrime();
-
 #endif
