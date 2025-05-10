@@ -1,798 +1,742 @@
+#include <stdio.h>
+#include <stdbool.h>
+#include <assert.h>
 #include "bignum.h"
-#include "error.h"
 
-/*
- * This method converts a string bignum to the bignum variable.
- * */
-bignum str2bignum(char * str){
-    int i, j;
-    bignum b[11],bignum_primitives[11], output;
-    // We will initialise 0...9 as bignums and store it as array of bignums
-    i=0;
-    while(i < 10){
-    	bignum_primitives[i] = digit2bignum(i);
-    	i++;
+/* Functions for shifting number in-place. */
+static void _lshift_one_bit(struct bn* a);
+static void _rshift_one_bit(struct bn* a);
+static void _lshift_word(struct bn* a, int nwords);
+static void _rshift_word(struct bn* a, int nwords);
+
+/* Public / Exported functions. */
+void bignum_init(struct bn* n)
+{
+    register int z = z-z;
+    int i = z;
+    n->array[0] = z;
+    for (i = BN_ARRAY_SIZE - 1; i > 0; i -=4)
+    {
+        n->array[i] = z;
+	n->array[i-1] = z;
+	n->array[i-2] = z;
+	n->array[i-3] = z;
     }
-    // initialize bignum 10
-    bignum_primitives[10].tab = (integer *)malloc(sizeof(integer) * 4);
-    bignum_primitives[10].sign = 1;
-
-    if (B < 10) {
-    	i = 0;
-    	        int int_ten = 10;
-    	        bignum_primitives[10].size = 1;
-    	        while (int_ten >= B) {
-    	        	bignum_primitives[10].size++;
-    	        	bignum_primitives[10].tab[i++] = int_ten % B;
-    	        	int_ten /= B;
-    	        }
-    	        bignum_primitives[10].tab[i] = int_ten;
-    } else {
-    	bignum_primitives[10].tab[0] = 10;
-    	bignum_primitives[10].size = 1;
-    }
-
-    j = 0;
-    output.sign = 1;
-    output.size = 1;
-    output.tab = (integer *)malloc(sizeof(integer));
-    output.tab[0] = 0;
-    if (str[0] == '-') {
-        j = 1;
-    }
-    integer *temp;
-    temp = output.tab;
-    output = add(output, bignum_primitives[str[j++]-'0']);
-    free(temp);
-    for (i = j; i < strlen(str); i++) {
-        int digit = str[i] - '0';
-        if (digit < 0 || digit > 9) {
-            perror(NUMBER_FORMAT_ERROR);
-            exit(0);
-        }
-
-        temp = output.tab;
-        output = mult(output, bignum_primitives[10]);
-        free(temp);
-
-        temp = output.tab;
-        output = add(output, bignum_primitives[str[i]-'0']);
-        free(temp);
-    }
-    // If the sign of the string number is -ve, we set the sign int as -1
-    if (str[0] == '-')
-    	output.sign = -1;
-
-    for (i = 0; i <= 10; i++) {
-        free(bignum_primitives[i].tab);
-        bignum_primitives[i].tab = NULL;
-    }
-    return output;
 }
 
-/*
- * Returns the sum of the two input bignums.
- * */
-bignum add(bignum a, bignum b){
-	if (a.sign == 1 && b.sign == -1) {
-	    	// else if b input is negative we return a-b
-	    	b.sign = 1;
-	        return sub(a, b);
-	}else if (a.sign == -1 && b.sign == 1) {
-	    	// if a is negative we return b-a
-	    	a.sign = 1;
-	        return sub(b, a);
-	}else if (b.size > a.size){
-		return add(b, a);
+/* unopt
+void bignum_init(struct bn* n)
+{
+  require(n, "n is null");
+
+  int i;
+  for (i = 0; i < BN_ARRAY_SIZE; ++i)
+  {
+    n->array[i] = 0;
+  }
+}*/
+
+void bignum_from_int(struct bn* n, DTYPE_TMP i)
+{
+  require(n, "n is null");
+
+  bignum_init(n);
+
+  /* Endianness issue if machine is not little-endian? */
+#ifdef WORD_SIZE
+ #if (WORD_SIZE == 1)
+  n->array[0] = (i & 0x000000ff);
+  n->array[1] = (i & 0x0000ff00) >> 8;
+  n->array[2] = (i & 0x00ff0000) >> 16;
+  n->array[3] = (i & 0xff000000) >> 24;
+ #elif (WORD_SIZE == 2)
+  n->array[0] = (i & 0x0000ffff);
+  n->array[1] = (i & 0xffff0000) >> 16;
+ #elif (WORD_SIZE == 4)
+  n->array[0] = i;
+  DTYPE_TMP num_32 = 32;
+  DTYPE_TMP tmp = i >> num_32; /* bit-shift with U64 operands to force 64-bit results */
+  n->array[1] = tmp;
+ #endif
+#endif
+}
+
+int bignum_to_int(struct bn* n)
+{
+  require(n, "n is null");
+
+  int ret = 0;
+
+  /* Endianness issue if machine is not little-endian? */
+#if (WORD_SIZE == 1)
+  ret += n->array[0];
+  ret += n->array[1] << 8;
+  ret += n->array[2] << 16;
+  ret += n->array[3] << 24;  
+#elif (WORD_SIZE == 2)
+  ret += n->array[0];
+  ret += n->array[1] << 16;
+#elif (WORD_SIZE == 4)
+  ret += n->array[0];
+#endif
+
+  return ret;
+}
+
+void bignum_from_string(struct bn* n, char* str, int nbytes)
+{
+  require(n, "n is null");
+  require(str, "str is null");
+  require(nbytes > 0, "nbytes must be positive");
+  require((nbytes & 1) == 0, "string format must be in hex -> equal number of bytes");
+
+  bignum_init(n);
+
+  DTYPE tmp;                        /* DTYPE is defined in bn.h - uint{8,16,32,64}_t */
+  int i = nbytes - (2 * WORD_SIZE); /* index into string */
+  int j = 0;                        /* index into array */
+
+  /* reading last hex-byte "MSB" from string first -> big endian */
+  /* MSB ~= most significant byte / block ? :) */
+  while (i >= 0)
+  {
+    tmp = 0;
+    sscanf(&str[i], SSCANF_FORMAT_STR, &tmp);
+    n->array[j] = tmp;
+    i -= (2 * WORD_SIZE); /* step WORD_SIZE hex-byte(s) back in the string. */
+    j += 1;               /* step one element forward in the array. */
+  }
+}
+
+void bignum_to_string(struct bn* n, char* str, int nbytes)
+{
+  require(n, "n is null");
+  require(str, "str is null");
+  require(nbytes > 0, "nbytes must be positive");
+  require((nbytes & 1) == 0, "string format must be in hex -> equal number of bytes");
+
+  int j = BN_ARRAY_SIZE - 1; /* index into array - reading "MSB" first -> big-endian */
+  int i = 0;                 /* index into string representation. */
+
+  /* reading last array-element "MSB" first -> big endian */
+  while ((j >= 0) && (nbytes > (i + 1)))
+  {
+    sprintf(&str[i], SPRINTF_FORMAT_STR, n->array[j]);
+    i += (2 * WORD_SIZE); /* step WORD_SIZE hex-byte(s) forward in the string. */
+    j -= 1;               /* step one element back in the array. */
+  }
+
+  /* Count leading zeros: */
+  j = 0;
+  while (str[j] == '0')
+  {
+    j += 1;
+  }
+ 
+  /* Move string j places ahead, effectively skipping leading zeros */ 
+  for (i = 0; i < (nbytes - j); ++i)
+  {
+    str[i] = str[i + j];
+  }
+
+  /* Zero-terminate string */
+  str[i] = 0;
+}
+
+void bignum_dec(struct bn* n)
+{
+  require(n, "n is null");
+
+  DTYPE tmp; /* copy of n */
+  DTYPE res;
+
+  int i;
+  for (i = 0; i < BN_ARRAY_SIZE; ++i)
+  {
+    tmp = n->array[i];
+    res = tmp - 1;
+    n->array[i] = res;
+
+    if (!(res > tmp))
+    {
+      break;
+    }
+  }
+}
+
+void bignum_inc(struct bn* n)
+{
+  require(n, "n is null");
+
+  DTYPE res;
+  DTYPE_TMP tmp; /* copy of n */
+
+  int i;
+  for (i = 0; i < BN_ARRAY_SIZE; ++i)
+  {
+    tmp = n->array[i];
+    res = tmp + 1;
+    n->array[i] = res;
+
+    if (res > tmp)
+    {
+      break;
+    }
+  }
+}
+
+void bignum_add(struct bn* a, struct bn* b, struct bn* c)
+{
+	DTYPE_TMP tmp;
+	int carry = carry - carry;
+	int i = 1;
+
+	tmp = (DTYPE_TMP)a->array[0] + b->array[0] + carry;
+	carry = (tmp > MAX_VAL);
+	c->array[0] = (tmp & MAX_VAL);
+
+	for (; i < BN_ARRAY_SIZE; i+=4)
+	{
+
+		tmp = (DTYPE_TMP)a->array[i] + b->array[i] + carry;
+		carry = (tmp > MAX_VAL);
+		c->array[i] = (tmp & MAX_VAL);
+
+		tmp = (DTYPE_TMP)a->array[i+1] + b->array[i+1] + carry;
+		carry = (tmp > MAX_VAL);
+		c->array[i+1] = (tmp & MAX_VAL);
+
+		tmp = (DTYPE_TMP)a->array[i+2] + b->array[i+2] + carry;
+		carry = (tmp > MAX_VAL);
+		c->array[i+2] = (tmp & MAX_VAL);
+
+		tmp = (DTYPE_TMP)a->array[i+3] + b->array[i+3] + carry;
+		carry = (tmp > MAX_VAL);
+		c->array[i+3] = (tmp & MAX_VAL);
+	}
+}
+/* unopt
+void bignum_add(struct bn* a, struct bn* b, struct bn* c)
+{
+  require(a, "a is null");
+  require(b, "b is null");
+  require(c, "c is null");
+
+  DTYPE_TMP tmp;
+  int carry = 0;
+  int i;
+  for (i = 0; i < BN_ARRAY_SIZE; ++i)
+  {
+    tmp = (DTYPE_TMP)a->array[i] + b->array[i] + carry;
+    carry = (tmp > MAX_VAL);
+    c->array[i] = (tmp & MAX_VAL);
+  }
+}*/
+
+
+void bignum_sub(struct bn* a, struct bn* b, struct bn* c)
+{
+  require(a, "a is null");
+  require(b, "b is null");
+  require(c, "c is null");
+
+  DTYPE_TMP res;
+  DTYPE_TMP tmp1;
+  DTYPE_TMP tmp2;
+  int borrow = 0;
+  int i;
+  for (i = 0; i < BN_ARRAY_SIZE; ++i)
+  {
+    tmp1 = (DTYPE_TMP)a->array[i] + (MAX_VAL + 1); /* + number_base */
+    tmp2 = (DTYPE_TMP)b->array[i] + borrow;;
+    res = (tmp1 - tmp2);
+    c->array[i] = (DTYPE)(res & MAX_VAL); /* "modulo number_base" == "% (number_base - 1)" if number_base is 2^N */
+    borrow = (res <= MAX_VAL);
+  }
+}
+
+
+void bignum_mul(struct bn* a, struct bn* b, struct bn* c)
+{
+  require(a, "a is null");
+  require(b, "b is null");
+  require(c, "c is null");
+
+  struct bn row;
+  struct bn tmp;
+  int i, j;
+
+  bignum_init(c);
+
+  for (i = 0; i < BN_ARRAY_SIZE; ++i)
+  {
+    bignum_init(&row);
+
+    for (j = 0; j < BN_ARRAY_SIZE; ++j)
+    {
+      if (i + j < BN_ARRAY_SIZE)
+      {
+        bignum_init(&tmp);
+        DTYPE_TMP intermediate = ((DTYPE_TMP)a->array[i] * (DTYPE_TMP)b->array[j]);
+        bignum_from_int(&tmp, intermediate);
+        _lshift_word(&tmp, i + j);
+        bignum_add(&tmp, &row, &row);
+      }
+    }
+    bignum_add(c, &row, c);
+  }
+}
+
+
+void bignum_div(struct bn* a, struct bn* b, struct bn* c)
+{
+  require(a, "a is null");
+  require(b, "b is null");
+  require(c, "c is null");
+
+  struct bn current;
+  struct bn denom;
+  struct bn tmp;
+
+  bignum_from_int(&current, 1);               // int current = 1;
+  bignum_assign(&denom, b);                   // denom = b
+  bignum_assign(&tmp, a);                     // tmp   = a
+
+  const DTYPE_TMP half_max = 1 + (DTYPE_TMP)(MAX_VAL / 2);
+  bool overflow = false;
+  while (bignum_cmp(&denom, a) != LARGER)     // while (denom <= a) {
+  {
+    if (denom.array[BN_ARRAY_SIZE - 1] >= half_max)
+    {
+      overflow = true;
+      break;
+    }
+    _lshift_one_bit(&current);                //   current <<= 1;
+    _lshift_one_bit(&denom);                  //   denom <<= 1;
+  }
+  if (!overflow)
+  {
+    _rshift_one_bit(&denom);                  // denom >>= 1;
+    _rshift_one_bit(&current);                // current >>= 1;
+  }
+  bignum_init(c);                             // int answer = 0;
+
+  while (!bignum_is_zero(&current))           // while (current != 0)
+  {
+    if (bignum_cmp(&tmp, &denom) != SMALLER)  //   if (dividend >= denom)
+    {
+      bignum_sub(&tmp, &denom, &tmp);         //     dividend -= denom;
+      bignum_or(c, &current, c);              //     answer |= current;
+    }
+    _rshift_one_bit(&current);                //   current >>= 1;
+    _rshift_one_bit(&denom);                  //   denom >>= 1;
+  }                                           // return answer;
+}
+
+
+void bignum_lshift(struct bn* a, struct bn* b, int nbits)
+{
+  require(a, "a is null");
+  require(b, "b is null");
+  require((nbits >= 0), "no negative shifts");
+
+  bignum_assign(b, a);
+  /* Handle shift in multiples of word-size */
+  const int nbits_pr_word = (WORD_SIZE * 8);
+  int nwords = nbits / nbits_pr_word;
+  if (nwords != 0)
+  {
+    _lshift_word(b, nwords);
+    nbits -= (nwords * nbits_pr_word);
+  }
+
+  if (nbits != 0)
+  {
+    int i;
+    for (i = (BN_ARRAY_SIZE - 1); i > 0; --i)
+    {
+      b->array[i] = (b->array[i] << nbits) | (b->array[i - 1] >> ((8 * WORD_SIZE) - nbits));
+    }
+    b->array[i] <<= nbits;
+  }
+}
+
+void bignum_rshift(struct bn* a, struct bn* b, int nbits)
+{
+	/* Handle shift in multiples of word-size */
+	int nwords = nbits >> 5;
+	if (nwords != 0)
+	{
+		int z = nwords << 5;
+		_rshift_word(a, nwords);
+		nbits -= (z);
 	}
 
-    bignum sum;
-    sum.sign = a.sign;
-    sum.size = a.size;
-    sum.tab = (integer *)malloc((a.size + 1) * sizeof(integer));
-
-    int i;
-    integer tmp;
-    integer carry = 0;
-    for (i  = 0; i < b.size; i++) {
-        tmp = a.tab[i] + b.tab[i] + carry;
-        sum.tab[i] = tmp % B;
-        carry = tmp / B;
-    }
-    for (; i < a.size; i++) {
-        tmp = a.tab[i] + carry;
-        carry = tmp / B;
-        sum.tab[i] = tmp % B;
-    }
-
-    sum.tab[i] = carry;
-    if (carry)
-        sum.size++;
-
-    return sum;
-}
-
-/*
- * Returns (a-b)
- * */
-bignum sub(bignum a, bignum b){
-    bignum difference;
-
-    if (a.sign == 1 && b.sign == -1) {// Since a-(-b) = a+b
-        b.sign = 1;
-        return add(a, b);
-    } else if (a.sign == -1 && b.sign == 1) {// Since -a-b= -(a+b)
-        b.sign = -1;
-        return add(a, b);
-    }else if (a.sign == -1 && b.sign == -1) {// Since -a-(-b)= b-a
-        a.sign = 1;
-        b.sign = 1;
-        return sub(b, a);
-    }
-    if (b.size > a.size) {// if b>a then a-b= -(b-a)
-    	difference = sub(b, a);
-    	difference.sign = -1;
-        return difference;
-    }
-    int i;
-    integer carry, temp;
-    if (a.size == b.size) {
-        for (i = a.size-1; (i >=0) && (a.tab[i] == b.tab[i]); i--);// i will be -1, if both a and b are exactly same bignum
-        if (i == -1) {
-        	difference.sign = 1;
-        	difference.size = 1;
-        	difference.tab = (integer *)malloc(sizeof(integer));
-        	difference.tab[0] = 0;
-            return difference;
-        }
-
-        difference.size = i + 1;
-        difference.tab = (integer *)malloc(difference.size * sizeof(integer));
-        carry = 0;
-        int j;
-        if (a.tab[i] > b.tab[i]) {// If a particular element of an array of the bignum "a" is larger than the bignum "b", we perform subtraction till this larger number in the array and put the difference sign as +ve else -ve
-        	difference.sign = 1;
-            for (j = 0; j <= i; j++) {
-            	temp = a.tab[j] - b.tab[j] + carry;
-                carry = (temp < 0) ? -1 : 0;
-                difference.tab[j] = (temp + B) % B;
-            }
-        } else {// It will enter here only if a>b, other cases are covered before. If so, we set the sign of the difference as the sign of a and follow the classic algorithm
-        	difference.sign = -1;
-            for (j = 0; j <= i; j++) {
-            	temp = b.tab[j] - a.tab[j] + carry;
-                carry = (temp < 0) ? -1 : 0;
-                difference.tab[j] = (temp + B) % B;
-            }
-        }
-    } else {
-    	difference.sign = a.sign;
-    	difference.size = a.size;
-    	difference.tab = (integer *)malloc((difference.size)*sizeof(integer));
-        carry = 0;
-        for (i = 0; i < b.size; i++) {
-        	temp = a.tab[i] - b.tab[i] + carry;
-            carry = (temp < 0) ? -1 : 0;
-            difference.tab[i] = (temp + B) % B;
-        }
-
-        for (; i < a.size; i++) {
-        	temp = a.tab[i] + carry;
-            carry = (temp < 0) ? -1 : 0;
-            difference.tab[i] = (temp + B) % B;
-        }
-    }
-    for (i = difference.size-1; difference.tab[i] == 0; i--);
-    difference.size = i + 1;// We update the size of the difference with the size of difference.tab array
-    return difference;
-}
-/*
- * Returns the product of inputs a and b
- * */
-bignum mult(bignum a, bignum b){
-    bignum product;
-
-    if (iszero(a) || iszero(b)) {// product is zero if any of its input is zero
-    	product.tab = (integer *)malloc(product.size * sizeof(integer));
-    	product.tab[0] = 0;
-    	product.sign = 1;
-    	product.size = 1;
-        return product;
-    }
-
-    if (b.size > a.size) //If b>a, we swap the values of a and b
-         return mult(b, a);
-
-    product.sign = a.sign * b.sign;
-    product.size = a.size + b.size;
-    product.tab = (integer *)malloc((product.size)*sizeof(integer));
-    int i;
-    for (i = 0; i < product.size; i++)
-    	product.tab[i] = 0;
-    integer carry;
-    for (i = 0; i < b.size; i++) {//Classical bignum multiplication algorithm
-        carry = 0;
-        int j;
-        integer tmp;
-        for (j = 0; j < a.size; j++) {
-            tmp = b.tab[i] * a.tab[j] + product.tab[i+j] + carry;
-            carry = tmp / B;
-            product.tab[i+j] = tmp % B;
-        }
-        product.tab[i+a.size] = carry;
-    }
-
-    for (i = product.size-1; product.tab[i] == 0; i--);
-    product.size = i + 1;
-    return product;
-}
-
-/*
- *  This method divides a by n and returns the remainder.
- * */
-bignum reminder(bignum a, bignum n){
-    int isEqual;
-    bignum remainder;
-    isEqual = compare(a, n);
-    if (isEqual == 0) {// return 0 if both a and n are same
-    	remainder.tab = (integer *)malloc(sizeof(integer));
-    	remainder.tab[0] = 0;
-    	remainder.size = 1;
-    	remainder.sign = 1;
-        return remainder;
-    }else if (isEqual == -1) {// isEqual is -1 when a<n, so we return a as reminder in this case
-        copy(&remainder, a);
-        return remainder;
-    }
-
-    bignum *temp_quorem;
-    if (isnormalized(n)) {// If n is normalised then we perform normalised division and return the intermediate quorem as remainder
-    	temp_quorem = normalized_divi(a, n);
-        remainder = temp_quorem[1];
-        free(temp_quorem[0].tab);
-        free(temp_quorem);
-        return remainder;
-    }
-    int i;
-    for (i = E-1; i >= 0; i--)// E is the log2(Base), for hexadecimal value, E is 4.
-        if ((n.tab[n.size-1] >> i) & 0x1)
-            break;
-    bignum lshifted_a, lshifted_n, lshifted_r;
-    lshifted_a = leftshift(a, E-i-1);
-    lshifted_n = leftshift(n, E-i-1);
-    temp_quorem = normalized_divi(lshifted_a, lshifted_n);
-    lshifted_r = temp_quorem[1];
-    remainder = rightshift(lshifted_r, E-i-1);
-
-    free(lshifted_a.tab);
-    free(lshifted_n.tab);
-    free(lshifted_r.tab);
-    free(temp_quorem[0].tab);
-    free(temp_quorem);
-
-    return remainder;
-}
-
-/*
- * Returns (a + b) mod n
- * */
-bignum addmod(bignum a, bignum b, bignum n){
-    bignum sum = add(a, b);
-    bignum output = reminder(sum, n);// we find remainder using the linear time algorithm
-    sum.tab = NULL;
-    free(sum.tab);
-    return output;
-}
-
-/*
- * Returns ( a * b ) mod n
- * */
-bignum multmod(bignum a, bignum b, bignum n){
-    bignum prd = mult(a, b);
-    bignum res = reminder(prd, n);
-    prd.tab = NULL;
-    free(prd.tab);
-    return res;
-}
-
-/*
- * Returns (a^b) mod n
- * */
-bignum expmod(bignum a, bignum b, bignum n){
-    integer *t;
-    int start;
-    start = length(b) % E;
-    if (start == 0) // if length of b is divisible by E, we take start as E.
-        start = E;
-    int j;
-    bignum result = reminder(a, n); // We first start with a mod n
-    for (j = start-2; j >= 0; j--) {
-        t = result.tab;
-        result = multmod(result, result, n); // Then we square the mod result
-        free(t);
-        if (((b.tab[b.size-1] >> j) & 0x1) == 1) { // We right shift the last part of b j times and check if the right-most-bit. if so result is result*a mod n
-            t = result.tab;
-            result = multmod(result, a, n);
-            free(t);
-        }
-    }
-    int i;
-    for(i = b.size-2; i >= 0; i--){
-        for(j = E-1; j >= 0; j--){
-            t = result.tab;
-            result = multmod(result, result, n);
-            free(t);
-            if (((b.tab[i] >> j) & 0x1) == 1){
-                t = result.tab;
-                result = multmod(result, a, n);
-                free(t);
-            }
-        }
-    }
-    return result;
-}
-
-/*
- * Returns 0 if a is composite and returns 1 if a is prime
- * This performs fermats test to check the primality of "a"
- * */
-int fermat(bignum a, int t){
-    int i;
-	for(i=0; i<t; i++){
-		bignum n;
-		while(1){
-			n= genrandom(length(a)-1);// Random number between 2 to a-2
-			if((compare(n,sub(a,digit2bignum(2))) == -1)&& (compare(n,digit2bignum(2)) == 1)){ //check if 2 < n < (a-2)
-				break;
-			}
+	if (nbits != 0)
+	{
+		int z = 32 - nbits;
+		int i;
+		for (i = 0; i < (BN_ARRAY_SIZE - 1); i++)
+		{
+			a->array[i] = (a->array[i] >> nbits) | (a->array[i + 1] << (z));
 		}
-		bignum r= expmod(n, sub(a,digit2bignum(1)), a);
-		if(compare(r, digit2bignum(1)) != 0){ // if r = 1, then n is composite
-			return 0;
+		a->array[i] >>= nbits;
+	}
+}
+/* unopt
+void bignum_rshift(struct bn* a, struct bn* b, int nbits)
+{
+  require(a, "a is null");
+  require(b, "b is null");
+  require(nbits >= 0, "no negative shifts");
+
+  bignum_assign(b, a);
+  // Handle shift in multiples of word-size
+  const int nbits_pr_word = (WORD_SIZE * 8);
+  int nwords = nbits / nbits_pr_word;
+  if (nwords != 0)
+  {
+    _rshift_word(b, nwords);
+    nbits -= (nwords * nbits_pr_word);
+  }
+
+  if (nbits != 0)
+  {
+    int i;
+    for (i = 0; i < (BN_ARRAY_SIZE - 1); ++i)
+    {
+      b->array[i] = (b->array[i] >> nbits) | (b->array[i + 1] << ((8 * WORD_SIZE) - nbits));
+    }
+    b->array[i] >>= nbits;
+  }
+
+}*/
+
+void bignum_mod(struct bn* a, struct bn* b, struct bn* c)
+{
+  /*
+    Take divmod and throw away div part
+  */
+  require(a, "a is null");
+  require(b, "b is null");
+  require(c, "c is null");
+
+  struct bn tmp;
+
+  bignum_divmod(a,b,&tmp,c);
+}
+
+void bignum_divmod(struct bn* a, struct bn* b, struct bn* c, struct bn* d)
+{
+
+  require(a, "a is null");
+  require(b, "b is null");
+  require(c, "c is null");
+
+  struct bn tmp;
+
+  /* c = (a / b) */
+  bignum_div(a, b, c);
+
+  /* tmp = (c * b) */
+  bignum_mul(c, b, &tmp);
+
+  /* c = a - tmp */
+  bignum_sub(a, &tmp, d);
+}
+
+
+void bignum_and(struct bn* a, struct bn* b, struct bn* c)
+{
+  require(a, "a is null");
+  require(b, "b is null");
+  require(c, "c is null");
+
+  int i;
+  for (i = 0; i < BN_ARRAY_SIZE; ++i)
+  {
+    c->array[i] = (a->array[i] & b->array[i]);
+  }
+}
+
+
+void bignum_or(struct bn* a, struct bn* b, struct bn* c)
+{
+  require(a, "a is null");
+  require(b, "b is null");
+  require(c, "c is null");
+
+  int i;
+  for (i = 0; i < BN_ARRAY_SIZE; ++i)
+  {
+    c->array[i] = (a->array[i] | b->array[i]);
+  }
+}
+
+
+void bignum_xor(struct bn* a, struct bn* b, struct bn* c)
+{
+  require(a, "a is null");
+  require(b, "b is null");
+  require(c, "c is null");
+
+  int i;
+  for (i = 0; i < BN_ARRAY_SIZE; ++i)
+  {
+    c->array[i] = (a->array[i] ^ b->array[i]);
+  }
+}
+
+
+int bignum_cmp(struct bn* a, struct bn* b)
+{
+  require(a, "a is null");
+  require(b, "b is null");
+
+  int i = BN_ARRAY_SIZE;
+  do
+  {
+    i -= 1; /* Decrement first, to start with last array element */
+    if (a->array[i] > b->array[i])
+    {
+      return LARGER;
+    }
+    else if (a->array[i] < b->array[i])
+    {
+      return SMALLER;
+    }
+  }
+  while (i != 0);
+
+  return EQUAL;
+}
+
+
+int bignum_is_zero(struct bn* n)
+{
+  require(n, "n is null");
+
+  int i;
+  for (i = 0; i < BN_ARRAY_SIZE; ++i)
+  {
+    if (n->array[i])
+    {
+      return 0;
+    }
+  }
+
+  return 1;
+}
+
+
+void bignum_pow(struct bn* a, struct bn* b, struct bn* c)
+{
+  require(a, "a is null");
+  require(b, "b is null");
+  require(c, "c is null");
+
+  struct bn tmp;
+
+  bignum_init(c);
+
+  if (bignum_cmp(b, c) == EQUAL)
+  {
+    /* Return 1 when exponent is 0 -- n^0 = 1 */
+    bignum_inc(c);
+  }
+  else
+  {
+    /* Copy a -> tmp */
+    bignum_assign(&tmp, a);
+
+    bignum_dec(b);
+ 
+    /* Begin summing products: */
+    while (!bignum_is_zero(b))
+    {
+
+      /* c = tmp * tmp */
+      bignum_mul(&tmp, a, c);
+      /* Decrement b by one */
+      bignum_dec(b);
+
+      bignum_assign(&tmp, c);
+    }
+
+    /* c = tmp */
+    bignum_assign(c, &tmp);
+  }
+}
+
+void bignum_isqrt(struct bn *a, struct bn* b)
+{
+  require(a, "a is null");
+  require(b, "b is null");
+
+  struct bn low, high, mid, tmp;
+
+  bignum_init(&low);
+  bignum_assign(&high, a);
+  bignum_rshift(&high, &mid, 1);
+  bignum_inc(&mid);
+
+  while (bignum_cmp(&high, &low) > 0)
+  {
+    bignum_mul(&mid, &mid, &tmp);
+    if (bignum_cmp(&tmp, a) > 0)
+    {
+      bignum_assign(&high, &mid);
+      bignum_dec(&high);
+    }
+    else
+    {
+      bignum_assign(&low, &mid);
+    }
+    bignum_sub(&high,&low,&mid);
+    _rshift_one_bit(&mid);
+    bignum_add(&low,&mid,&mid);
+    bignum_inc(&mid);
+  }
+  bignum_assign(b,&low);
+}
+
+void bignum_assign(struct bn* dst, struct bn* src)
+{
+	register int i = BN_ARRAY_SIZE-1;
+	for (; i > 0; i-=4)		//loop opt
+	{
+		dst->array[i] = src->array[i];
+		dst->array[i-1] = src->array[i-1];
+		dst->array[i-2] = src->array[i-2];
+		dst->array[i-3] = src->array[i-3];
+
+	}
+	dst->array[0] = src->array[0];
+
+}
+/* unopt
+void bignum_assign(struct bn* dst, struct bn* src)
+{
+  require(dst, "dst is null");
+  require(src, "src is null");
+
+  int i;
+  for (i = 0; i < BN_ARRAY_SIZE; ++i)
+  {
+    dst->array[i] = src->array[i];
+  }
+}*/
+
+int bignum_getbit(struct bn* a, int n){
+	int arrayInd = (n >> 5);
+	int shift = (n - (arrayInd << 5));
+	return (a->array[arrayInd] >> shift) & 1;
+}
+/* unopt
+int bignum_getbit(struct bn* a, int n){
+
+	int arrayInd = (n / 32);
+	int numShift = (n  %  32);
+	uint32_t num = a->array[arrayInd];
+	uint32_t numChanged = (num >> numShift);
+	return numChanged % 2;
+}*/
+
+int bignum_numbits(struct bn* bn){
+
+	register int f = (BN_ARRAY_SIZE << 5) -1;
+
+	for (;f > 0; --f){
+		int b = bignum_getbit(bn, f);
+		if (b == 1){
+			return f+1;
 		}
 	}
-	return 1; // if r!=1 for t runs, then n is prime
+	return 0;
+}
+/* unopt
+int bignum_numbits(struct bn* bn){
+
+	int m = 0;
+	int f = BN_ARRAY_SIZE * 32;
+
+	for (;f > 0; f--) {
+		int b = bignum_getbit(bn, f - 1);
+		if (b == 1) {
+			m = f;
+			break;
+		}
+	}
+	return m;
+}*/
+
+void bignum_print(struct bn* num){
+
+	int size = 8192;
+	char str[size];
+	bignum_to_string(num, str, size);
+	printf(" %s\n",str);
 }
 
-/*
- * Returns a positive random number of given length
- * */
-bignum genrandom(int length){
-    bignum output;
-    if (length == 0) {// if length is 0, we always return 0
-    	output.sign = 1;
-    	output.size = 1;
-    	output.tab = (integer *)malloc(sizeof(integer));
-    	output.tab[0] = 0;
-        return output;
-    }
-    output.size = length / E;
-    output.sign = 1;// we always return +ve random number
-    if (length % E != 0)
-    	output.size++; // we fix the size of tab to be |length/E| + length%E
-    output.tab = (integer *)malloc(sizeof(integer)*output.size);
-    int i;
-    for (i = 0; (i+1) * E < length; i++) {
-    	output.tab[i] = rand() % B; //we fill the tab array with random integers of given base
-    }
-    int n;
-    n = length - i*E;
-    output.tab[i] = ((integer)rand()) % B;
-    output.tab[i] |= ((integer)0x1 << (n-1));
-    int j;
-    for (j = n; j < E; j++)
-    	output.tab[i] &= ~((integer)0x1 << j);
+/* Private / Static functions. */
+static void _rshift_word(struct bn* a, int nwords)
+{
+  /* Naive method: */
+  require(a, "a is null");
+  require(nwords >= 0, "no negative shifts");
 
-    return output;
-}
-/*
- * Returns a positive random prime number
- * Uses fermats test to check for primality
- * */
-bignum genrandomprime(int length){
-    bignum p = genrandom(length);
-    while (!fermat(p, TEST_CNT)) { //1 -
-        free(p.tab);
-        p.tab = NULL;
-        p = genrandom(length);
-    }
-
-    return p;
-}
-/*
- * This method prints the value of the input bignum
- * For E.g. The
- * */
-void printbignum(bignum num){
-    int i;
-    if (B != 16) {
-    	i = num.size-1;
-    	while(i >= 0){
-            printf("[%3d] - %lu\n", i, num.tab[i]);
-    		i--;
-    	}
-        printf("Base = %ld, %s\n", B, num.sign==1?"+ve":"-ve");
-    } else {
-    	// Hexadecimal value, since base is 16
-        if (num.sign == -1) printf("-");
-        printf("0x");
-        i = num.size-1;
-        while(i >= 0){
-            printf("%x", num.tab[i]);
-            i--;
-        }
-        printf("\n");
-    }
-}
-
-/*
- * This is a utility method to convert a single digit int to a bignum variable
- */
-bignum digit2bignum(int digit){
-    if (digit < 0 || digit > 9) {
-        perror(NUMBER_FORMAT_ERROR_1);
-        exit(1);
-    }
-
-    bignum output;
-    int i = 0;
-
-    output.sign = 1;
-    output.tab = (integer *)malloc(sizeof(integer) * 4);
-    output.size = 1;
-    while (digit >= B) {
-    	output.tab[i++] = digit % B;
-        digit /= B;
-    	output.size++;
-    }
-    output.tab[i] = digit;
-
-    return output;
-}
-
-// ************************************************************* Other Utility functions *******************************************************
-
-/*
- * Copies bignum from source to destination
- * */
-void copy(bignum *destination, bignum source){
-    if (destination == &source) // If address of both are same, do nothing
-        return;
-    *destination = source;
-    destination->tab = (integer *)malloc(destination->size * sizeof(integer));
-    memcpy(destination->tab, source.tab, destination->size*sizeof(integer));
-}
-
-/*
- * Returns 1 if a is 0 and returns 0 if a!=0
- * */
-int iszero(bignum a){
-    return (a.size == 1) && (a.tab[0] == 0);
-}
-
-/*
- * Returns 1 if a is 1 and returns 0 if a!=1
- * */
-int isone(bignum a){
-    return (a.size == 1) && (a.sign == 1) && (a.tab[0] == 1);
-}
-
-/*
- * This method is used to compare two bignum a and b
- * Returns  1: if a > b
- * Returns  0: if a = b
- * Returns -1: if a < b
- */
-int compare(bignum a, bignum b){
-    if (a.sign == -1 && b.sign == 1) // If a is -ve and b is +ve, then return -1 (implies a is smaller than b)
-        return -1;
-    if (a.sign == 1 && b.sign == -1) // If a is +ve and b is -ve, then return 1 (implies b is smaller than a)
-        return 1;
-
-    if (a.sign == -1 && b.sign == -1) {// If both a and b are -ve, then inverse the sign of both and call same method with this inverted value
-        a.sign = b.sign = 1;
-        return compare(b, a);
-    }
-
-    if (a.size < b.size)
-        return -1;
-    if (a.size > b.size)
-        return 1;
-
-    int i; // it reaches here only if size of a and b are same
-    for (i = a.size - 1; i >= 0; i--) // If so, we compare from the most significant digit
-        if (a.tab[i] < b.tab[i])
-            return -1;
-        else if (a.tab[i] > b.tab[i])
-            return 1;
-
-    return 0;
+  int i;
+  for (i = 0; i < nwords; ++i)
+  {
+    a->array[i] = a->array[i + 1];
+  }
+  for (; i < BN_ARRAY_SIZE; ++i)
+  {
+    a->array[i] = 0;
+  }
 }
 
 
-/*
- * Leftshifts a by k index and returns the output
- * */
-bignum leftshift(bignum a, int k){
-    int i, len = length(a)+k;
+static void _lshift_word(struct bn* a, int nwords)
+{
+  require(a, "a is null");
+  require(nwords >= 0, "no negative shifts");
 
-    bignum res;
-    res.sign = 1;
-    res.size = (len/E) + ((len%E == 0) ? 0 : 1);
-    res.tab = (integer *)malloc((res.size) * sizeof(integer));
-
-    int m = k/E, n = k%E;
-    for (i = 0; i < m; i++)
-        res.tab[i] = 0;
-    if (n == 0) 
-        for (i = m; i < res.size; i++)
-            res.tab[i] = a.tab[i-m];
-    else {
-        res.tab[m] = (((a.tab[0] << n) & (integer)MASK));
-        for (i = m+1; i < res.size-1; i++) {
-            res.tab[i] = a.tab[i-m-1] >> (E-n);
-            res.tab[i] |= (((a.tab[i-m] << n) & (integer)MASK));
-        }
-        res.tab[i] = a.tab[i-m-1] >> (E-n);
-        if (i-m < a.size)
-            res.tab[i] |= (((a.tab[i-m] << n) & (integer)MASK));
-    }
-
-    return res;
-}
-/*
- * Rightshifts a by k index and returns the output
- * */
-bignum rightshift(bignum a, int k){
-    int i, len = length(a)-k;
-
-    bignum res;
-    res.sign = 1;
-
-    if (len <= 0) {
-        res.size = 1;
-        res.tab = (integer *)malloc(sizeof(integer));
-        res.tab[0] = 0;
-
-        return res;
-    } 
-    
-    res.size = (len/E) + ((len%E == 0) ? 0 : 1);
-    res.tab = (integer *)malloc((res.size) * sizeof(integer));
-    
-    int m = k/E, n = k%E;
-    if (n == 0) {
-        for (i = 0; i < res.size; i++)
-            res.tab[i] = a.tab[i+m];
-    } else {
-        for (i = 0; i < res.size-1; i++) {
-            res.tab[i] = a.tab[i+m] >> n;
-            res.tab[i] |= ((a.tab[i+m+1] << (E-n)) & MASK);
-        }
-        res.tab[i] = a.tab[i+m] >> n;
-        if (i+m+1 < a.size)
-            res.tab[i] |= ((a.tab[i+m+1] << (E-n)) & MASK);
-    }
-
-    return res;
+  int i;
+  /* Shift whole words */
+  for (i = (BN_ARRAY_SIZE - 1); i >= nwords; --i)
+  {
+    a->array[i] = a->array[i - nwords];
+  }
+  /* Zero pad shifted words. */
+  for (; i >= 0; --i)
+  {
+    a->array[i] = 0;
+  }  
 }
 
 
+static void _lshift_one_bit(struct bn* a)
+{
+  require(a, "a is null");
 
-/*
- * Performs bignum division and returns a/n
- * */
-bignum divi(bignum a, bignum n){
-    int comp;
-    bignum output;
-
-    comp = compare(a, n);
-    if (comp == -1) { // if a<n, return 0
-    	output.sign = output.size = 1;
-    	output.tab = (integer *)malloc(sizeof(integer));
-    	output.tab[0] = 0;
-        return output;
-    }
-    if (comp == 0) {// if a==n, return 1
-    	output.sign = output.size = 1;
-        output.tab = (integer *)malloc(sizeof(integer));
-        output.tab[0] = 1;
-        return output;
-    }
-    bignum  *temp_quorem;;
-
-    if (isnormalized(n)) {// if n is normalised, then we perform normalised division (a/n) and return quorem
-    	temp_quorem = normalized_divi(a, n);
-        output = temp_quorem[0];
-        free(temp_quorem[1].tab);
-        free(temp_quorem);
-
-        return output;
-    }
-    int i;
-    for (i = E-1; i >= 0; i--)
-        if ((n.tab[n.size-1] >> i) & 0x1)
-            break;
-    bignum leftshifted_a, leftshifted_n;
-    leftshifted_a = leftshift(a, E-i-1);
-    leftshifted_n = leftshift(n, E-i-1);
-    temp_quorem = normalized_divi(leftshifted_a, leftshifted_n);
-    output = temp_quorem[0];
-
-    free(temp_quorem[1].tab);
-    free(temp_quorem);
-    free(leftshifted_a.tab);
-    free(leftshifted_n.tab);
-    return output;
+  int i;
+  for (i = (BN_ARRAY_SIZE - 1); i > 0; --i)
+  {
+    a->array[i] = (a->array[i] << 1) | (a->array[i - 1] >> ((8 * WORD_SIZE) - 1));
+  }
+  a->array[0] <<= 1;
 }
 
-/*
- * Returns the length of bignum a
- * */
-int length(bignum a){
-    int length = a.size * E;
-    integer n = a.tab[a.size-1];
-    int i;
-    for (i = E-1; i > 0; i--)
-        if (((n >> i) & 0x1) == 0)
-        	length--;
-        else
-            break;
-    return length;
-}
-/*
- * Returns inverse of a mod n
- * */
-bignum inverse(bignum a, bignum n){
-    bignum r[2], v[2], q;
 
-    r[0] = reminder(n, a);
-    copy(&r[1], a);
-    q = divi(n, a);
-    
-    v[1] = digit2bignum(1);
+static void _rshift_one_bit(struct bn* a)
+{
+  require(a, "a is null");
 
-    copy(&v[0], q);
-    free(q.tab);
-    if (!iszero(v[0]))
-        v[0].sign *= -1;
-
-    integer *t;
-
-    bignum tmp0, tmp1;
-    int mark = 0, mark1 = 1;
-    while (!iszero(r[mark])) {
-        mark ^= 1;
-        mark1 ^= 1;
-
-        q = divi(r[mark], r[mark1]);
-
-        t = r[mark].tab;
-        r[mark] = reminder(r[mark], r[mark1]); 
-        free(t);
-
-        tmp0 = mult(q, v[mark1]);
-        tmp1 = sub(v[mark], tmp0);
-
-        free(v[mark].tab);
-        v[mark] = reminder(tmp1, n);
-
-        free(q.tab);
-        free(tmp0.tab);
-        free(tmp1.tab);
-    }
-
-    tmp0 = add(v[mark^1], n);
-    bignum output = reminder(tmp0, n);
-
-    free(tmp0.tab);
-    free(v[0].tab);
-    free(v[1].tab);
-    free(r[0].tab);
-    free(r[1].tab);
-
-    return output;
-}
-
-/*
- * Returns GCD of two bignums a and b
- * */
-bignum gcd(bignum a, bignum b){
-    bignum output;
-    output.sign = 1;
-
-    if (iszero(b)) { // if b==0, then gcd(a,b)=a
-    	output.tab = (integer *)malloc((output.size) * sizeof(integer));
-        copy(&output, a);
-        return output;
-    }
-    if (iszero(a)) {// if a==0, then gcd(a,b)=b
-    	output.tab = (integer *)malloc((output.size) * sizeof(integer));
-        copy(&output, b);
-        return output;
-    }
-    bignum tmp;
-
-    if (compare(a, b)) {//if a!=b, we
-        tmp = reminder(a, b);
-        output = gcd(b, tmp);
-        free(tmp.tab);
-        return output;
-    } else {
-        tmp = reminder(b, a);
-        output = gcd(a, tmp);
-        free(tmp.tab);
-        return output;
-    }
-}
-
-/*
- * A bignum is normalised when its MSB is 1
- */
-int isnormalized(bignum a){
-    if (a.sign == -1)
-        return 0;
-    return  0x1 & (a.tab[a.size-1] >> (E-1));
-}
-
-// We can perform normalised division only if a > b > 0, and b is normalized;
-/*
- * Returns an array, with quotient as first element and remainder as second element
- * */
-bignum * normalized_divi(bignum a, bignum b){
-    bignum r, remainder;
-
-    remainder.sign = 1;
-    remainder.size = a.size;
-    remainder.tab = (integer *)malloc(sizeof(integer)*(remainder.size+1));
-
-    int i,k = a.size;
-    for (i = 0; i < k; i++)
-    	remainder.tab[i] = a.tab[i];
-    remainder.tab[k] = 0;
-    int l = b.size;
-    bignum quotient;
-    quotient.sign = 1;
-    quotient.size = k - l + 1;
-    quotient.tab = (integer *)malloc(sizeof(integer)*quotient.size);
-    integer temp;
-    for (i = k-l; i >= 0; i--){
-    	quotient.tab[i] = (remainder.tab[i+l]*B + remainder.tab[i+l-1]) / b.tab[l-1];
-        if (quotient.tab[i] >= B)
-        	quotient.tab[i] = B-1;
-
-        int carry = 0;
-        int j;
-        for (j = 0; j < l; j++) {
-        	temp = remainder.tab[i+j] - quotient.tab[i]*b.tab[j] + carry;
-            carry = temp / B;
-            remainder.tab[i+j] = temp % B;
-            if (temp < 0 && remainder.tab[i+j] != 0) {
-                carry -= 1;
-                remainder.tab[i+j] = remainder.tab[i+j] + B;
-            }
-        }
-        remainder.tab[i+l] += carry;
-
-        while (remainder.tab[i+l] < 0) {
-            carry = 0;
-            for (j = 0; j < l; j++) {
-            	temp = remainder.tab[i+j] + b.tab[j] + carry;
-                carry = temp / B;
-                remainder.tab[i+j] = temp % B;
-            }
-            remainder.tab[i+l] += carry;
-            quotient.tab[i]--;
-        }
-    }
-
-    for (i = k-l; i >= 1 && quotient.tab[i] == 0; i--);
-    quotient.size = i+1;
-    for (i = l-1; i >= 1 && remainder.tab[i] == 0; i--);
-    remainder.size = i+1;
-
-    bignum * output = (bignum *)malloc(sizeof(bignum)*2);
-    output[0] = quotient;
-    output[1] = remainder;
-    return output;
+  int i;
+  for (i = 0; i < (BN_ARRAY_SIZE - 1); ++i)
+  {
+    a->array[i] = (a->array[i] >> 1) | (a->array[i + 1] << ((8 * WORD_SIZE) - 1));
+  }
+  a->array[BN_ARRAY_SIZE - 1] >>= 1;
 }
