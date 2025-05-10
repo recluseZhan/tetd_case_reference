@@ -1,8 +1,6 @@
 #ifndef __BIGNUM_H__
 #define __BIGNUM_H__
 
-#include <stdint.h>
-
 /* This macro defines the word size in bytes of the array that constitues the big-number data structure. */
 #ifndef WORD_SIZE
   #define WORD_SIZE 4
@@ -34,8 +32,8 @@
   #define SSCANF_FORMAT_STR        "%4hx"
   #define MAX_VAL                  ((DTYPE_TMP)0xFFFF)
 #elif (WORD_SIZE == 4)
-  #define DTYPE                    uint32_t
-  #define DTYPE_TMP                uint64_t
+  #define DTYPE                    unsigned int
+  #define DTYPE_TMP                unsigned long long
   #define DTYPE_MSB                ((DTYPE_TMP)(0x80000000))
   #define SPRINTF_FORMAT_STR       "%.08x"
   #define SSCANF_FORMAT_STR        "%8x"

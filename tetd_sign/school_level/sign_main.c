@@ -1,20 +1,25 @@
 /*
  * RSA-3072 signature using Montgomery multiplication and CRT optimization
 */
-
 #include "bignum.h"
 
 #define RSA_KEY_BITS 3072
 #define RSA_KEY_BYTES (RSA_KEY_BITS / 8)
 
-typedef uint8_t u8;
+typedef unsigned char u8;
+typedef unsigned int uint32_t;
+typedef unsigned long long uint64_t;
 
 // Because CRT, two LUTs of dp/dq (3072 / 2 + 1)
 #define LUT_SIZE 1537
 static struct bn lut[LUT_SIZE];
 
-extern void sha256_ni_transform(uint8_t *hash, const uint8_t *data, uint64_t len);
+extern void sha256_ni_transform(u8 *hash, const u8 *data, uint64_t len);
 
+extern int printf (const char *format, ...);
+extern uint64_t strlen(const char *s);
+extern int rand(void);
+void montMult(struct bn* x, struct bn* y, struct bn* m, int mBits, struct bn* out);
 /* Key parameters in hex */
 // modulus n (3072‑bit)
 static const char *hex_n =
@@ -282,14 +287,12 @@ int rsa_sign(const u8 *input, u8 *output, uint64_t input_len){
 
 int main() {
     uint64_t input_len = 4096;
-    u8 *input = (uint8_t *)malloc(input_len);
-    u8 *output = (uint8_t *)malloc(RSA_KEY_BYTES);
+    u8 input[input_len];
+    u8 output[RSA_KEY_BYTES];
     for (int i = 0; i < input_len; i++){
         input[i] = rand() % 256;
     }
     rsa_sign(input, output, input_len);
 
-    free(input);
-    free(output);
     return 0;
 }

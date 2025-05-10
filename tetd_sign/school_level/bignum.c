@@ -1,8 +1,9 @@
-#include <stdio.h>
-#include <stdbool.h>
 #include <assert.h>
 #include "bignum.h"
 
+extern int printf (const char *format, ...);
+extern int sprintf (char *str, const char *format, ...);
+extern int sscanf(const char *str, const char *format, ...);
 /* Functions for shifting number in-place. */
 static void _lshift_one_bit(struct bn* a);
 static void _rshift_one_bit(struct bn* a);
@@ -303,12 +304,12 @@ void bignum_div(struct bn* a, struct bn* b, struct bn* c)
   bignum_assign(&tmp, a);                     // tmp   = a
 
   const DTYPE_TMP half_max = 1 + (DTYPE_TMP)(MAX_VAL / 2);
-  bool overflow = false;
+  int overflow = 0;
   while (bignum_cmp(&denom, a) != LARGER)     // while (denom <= a) {
   {
     if (denom.array[BN_ARRAY_SIZE - 1] >= half_max)
     {
-      overflow = true;
+      overflow = 1;
       break;
     }
     _lshift_one_bit(&current);                //   current <<= 1;
