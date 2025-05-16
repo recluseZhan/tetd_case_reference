@@ -1,8 +1,5 @@
 #include <linux/module.h>
-#include <linux/kernel.h>
-#include <linux/init.h>
 #include <linux/io.h>
-#include <linux/pci.h>
 
 #define IVSHMEM_BAR0_ADDRESS 0x383800000000
 #define IVSHMEM_BAR0_SIZE (1 * 1024 * 1024)

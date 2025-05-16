@@ -1,5 +1,5 @@
 #include <linux/module.h>
-#include <linux/scatterlist.h>
+#include <linux/io.h>
 #include "aesni_encrypt.h"
 
 #define AES_KEY_SIZE 16
