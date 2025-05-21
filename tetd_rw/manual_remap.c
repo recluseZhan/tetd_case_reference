@@ -88,7 +88,6 @@ static int manual_remap_range(unsigned long phys_start, unsigned long phys_end, 
             pud[i2] = (((unsigned long)np - PAGE_OFFSET) & PAGE_MASK) | 0x3UL;
 	    //np = virt_to_phys((void *)np);
 	    //pud[i2] = (np & PAGE_MASK) | 0x3UL;
-	    printk("get free page\n");
         }
         pmd = phys_to_virt_k(pud[i2] & PAGE_MASK);
 
@@ -99,7 +98,6 @@ static int manual_remap_range(unsigned long phys_start, unsigned long phys_end, 
 	    pmd[i3] = (((unsigned long)np - PAGE_OFFSET) & PAGE_MASK) | 0x3UL;
             //np = virt_to_phys((void *)np);
 	    //pmd[i3] = (np & PAGE_MASK) | 0x3UL;
-	    printk("get free page\n");
         }
         pte = phys_to_virt_k(pmd[i3] & PAGE_MASK);
 
