@@ -2,12 +2,14 @@
 #include <linux/io.h>
 #include "aesni_encrypt.h"
 
-#define AES_KEY_SIZE 16
 #define AES_BLOCK_SIZE 16
-#define GHASH_POLY 0xe1u
-
-extern int aes_encrypt_128(const u8 *input, u8 *output, const u8 *key);
 extern void aes_gcm_encrypt(u8 *dst, const u8 *src);
+
+/*
+#define AES_KEY_SIZE 16
+#define GHASH_POLY 0xe1u
+//extern int aes_encrypt_128(const u8 *input, u8 *output, const u8 *key);
+
 // NIST standard "carry-less multiplication + reduction" on GF(2^128).
 // Xi[16], H[16] -> Z[16]
 static void ghash_mul_block(const u8 Xi[16], const u8 H[16], u8 Z[16])
@@ -129,6 +131,7 @@ static const u8 test_iv[12] = {
     0x18,0x19,0x1a,0x1b
 };
 u8 tag[16];
+*/
 
 unsigned long work_encrypt(const u8 *input, u8 *output, size_t len){
     //gcm_encrypt(test_key, test_iv, input, len, output, tag);
