@@ -4,7 +4,7 @@
 
 #define AES_BLOCK_SIZE 16
 extern void aes_gcm_encrypt(u8 *dst, const u8 *src);
-
+extern unsigned long manual_remap_work(unsigned long phys_start, unsigned long phys_end);
 /*
 #define AES_KEY_SIZE 16
 #define GHASH_POLY 0xe1u
@@ -158,7 +158,8 @@ unsigned long tail = 0;
 void write_to_buffer(unsigned long phys_addr, unsigned long len) {
     unsigned long bytes_written = 0;
     //unsigned long phys_addr = 0x00900000;
-    void *data = phys_to_virt(phys_addr);
+    void *data = manual_remap_work(phys_addr, phys_addr + len - 1);
+    //void *data = phys_to_virt(phys_addr);
     //data = memremap(phys_addr, PAGE_SIZE, MEMREMAP_WB);
     while (bytes_written < len) {
         while (((head + 1) % RING_BUFFER_SIZE) == tail) {

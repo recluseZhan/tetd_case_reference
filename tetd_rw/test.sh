@@ -1,10 +1,12 @@
 sudo rmmod tdi_dev1
 sudo rmmod read1
 sudo rmmod write1
+sudo rmmod manual_remap
 sudo rm -rf /dev/tdi_dev
 make clean
 
 make
+sudo insmod manual_remap1.ko
 sudo insmod write1.ko
 sudo insmod read1.ko
 sudo insmod tdi_dev1.ko
