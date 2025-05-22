@@ -1,7 +1,7 @@
 sudo rmmod tdi_dev1
 sudo rmmod read1
 sudo rmmod write1
-sudo rmmod manual_remap
+sudo rmmod manual_remap1
 sudo rm -rf /dev/tdi_dev
 make clean
 
