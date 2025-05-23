@@ -7,9 +7,11 @@ MODULE_LICENSE("GPL");
 #define GPA 0x17485b000
 //#define GPA2 0x1000
 #define SIZE 128
+#define AES_BLOCK_SIZE 16
 static char* page_memory = NULL;
 //static char __iomem *vaddr;
 
+extern void aes_gcm_encrypt(u8 *dst, const u8 *src);
 int log_copy(void){
     if(page_memory == NULL){
         page_memory = (char *)__get_free_pages(GFP_KERNEL, 0);
@@ -114,6 +116,14 @@ int log_copy2(void){
 }*/
 /*
 */
+
+unsigned long work_encrypt(const u8 *input, u8 *output, size_t len){
+    for (int i = 0; i < PAGE_SIZE / AES_BLOCK_SIZE; i++) {
+        aes_gcm_encrypt(output + i * AES_BLOCK_SIZE, input + i * AES_BLOCK_SIZE);
+    }
+    return 0;
+}
+
 static int __init log_init(void)
 {
     printk(KERN_INFO "Entering log module\n");

@@ -1,5 +1,5 @@
 obj-m += log1.o
-log1-objs := log.o
+log1-objs := log.o aesni.o
 
 obj-m += tdi_dev1.o
 tdi_dev1-objs := tdi_dev.o
