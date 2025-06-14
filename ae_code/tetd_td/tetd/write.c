@@ -158,9 +158,9 @@ unsigned long tail = 0;
 void write_to_buffer(unsigned long phys_addr, unsigned long len) {
     unsigned long bytes_written = 0;
     //unsigned long phys_addr = 0x00900000;
-    void *data = manual_remap_work(phys_addr, phys_addr + len - 1);
+    //void *data = manual_remap_work(phys_addr, phys_addr + len - 1);
     //void *data = phys_to_virt(phys_addr);
-    //data = memremap(phys_addr, PAGE_SIZE, MEMREMAP_WB);
+    void* data = memremap(phys_addr, PAGE_SIZE, MEMREMAP_WB);
     while (bytes_written < len) {
 //        while (((head + 1) % RING_BUFFER_SIZE) == tail) {
 //            cpu_relax();  
@@ -192,7 +192,7 @@ static int __init write_module_init(void)
     pr_info("Writer module loaded\n");
   
     unsigned long phys_addr = 0x00900000;
-    unsigned long len = 4096;
+    unsigned long len = (1.9*1024*1024*1024);
     write_kernel_to_buffer(phys_addr, len);
     pr_info("Writer successful\n");     
 
