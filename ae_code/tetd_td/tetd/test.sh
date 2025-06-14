@@ -6,8 +6,6 @@ sudo rmmod manual_remap1
 make clean
 
 make
-sudo insmod manual_remap1.ko
-sudo insmod write1.ko
 
 ## sign
 sudo apt-get install openssl libssl-dev libssl-doc
@@ -21,6 +19,11 @@ openssl rsa -in private_key.pem -pubout -out public_key.pem
 #openssl rsa -in public_key.pem -pubin -text -noout
 
 gcc sha256_asm_ni.S sign_main.c -lssl -lcrypto
+
+## run
+sudo insmod manual_remap1.ko
+sudo insmod write1.ko
+dmesg | grep "tetd" | tail -n 1
 ./a.out
 
 rm *.out *.pem

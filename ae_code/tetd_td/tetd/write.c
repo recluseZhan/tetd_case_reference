@@ -2,6 +2,17 @@
 #include <linux/io.h>
 #include "aesni_encrypt.h"
 
+unsigned long urdtsc(void)
+{
+    unsigned int lo,hi;
+
+    __asm__ __volatile__
+    (
+        "rdtsc":"=a"(lo),"=d"(hi)
+    );
+    return (unsigned long)hi<<32|lo;
+}
+
 #define AES_BLOCK_SIZE 16
 extern void aes_gcm_encrypt(u8 *dst, const u8 *src);
 extern unsigned long manual_remap_work(unsigned long phys_start, unsigned long phys_end);
@@ -157,6 +168,7 @@ unsigned long tail = 0;
 
 void write_to_buffer(unsigned long phys_addr, unsigned long len) {
     unsigned long bytes_written = 0;
+    unsigned long t1,t2,t_all=0;
     //unsigned long phys_addr = 0x00900000;
     //void *data = manual_remap_work(phys_addr, phys_addr + len - 1);
     //void *data = phys_to_virt(phys_addr);
@@ -166,11 +178,15 @@ void write_to_buffer(unsigned long phys_addr, unsigned long len) {
 //            cpu_relax();  
 //        }	
 	//memset(ivshmem_base,1,RING_BUFFER_SIZE);
+        t1=urdtsc();
 	work_encrypt(data+bytes_written,ivshmem_base+head,PAGE_SIZE);
+        t2=urdtsc();
+        t_all+=(t2-t1)*5/12;
         //memcpy(ivshmem_base+head,data+bytes_written,PAGE_SIZE);
 	head = (head+PAGE_SIZE) % RING_BUFFER_SIZE;
 	bytes_written += PAGE_SIZE;
     }
+    printk("tetd_reader time: %lld\n",t_all);
 }
 
 void write_kernel_to_buffer(unsigned long phys_addr, unsigned long len){
